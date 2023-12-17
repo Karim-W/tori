@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+</head>
+
+<body
+  class="flex flex-col justify-center p-16 text-zinc-50 items-center w-screen h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 gap-4">
+  <script>
+    window.onload = function () {
+      const magent = document.getElementById("magent");
+      const submit = document.getElementById("btn");
+      const path = document.getElementById("path");
+
+      submit.addEventListener("click", () => {
+        const magentValue = magent.value;
+        const url = `/api/v1/torrents`;
+
+        var myHeaders = new Headers();
+
+        myHeaders.append("Content-Type", "application/json");
+
+        var requestOptions = {
+          method: "POST",
+          redirect: "follow",
+          body: magentValue,
+          headers: myHeaders,
+        };
+        fetch(url + `?path=${path.value}`, requestOptions)
+          .then((response) => response.text())
+          .then((result) => console.log(result))
+          .catch((error) => console.log("error", error));
+      });
+    };
+  </script>
+
+  <h1 class="text-6xl text-center">TORI</h1>
+  <div class="flex flex-col gap-2 w-full">
+    <div class="flex flex-row w-full h-full justify-center items-center gap-4 text-2xl">
+      <p class="w-40">Magent:</p>
+      <input type="text" id="magent" name="magent" class="text-zinc-950 rounded-lg w-full max-w-lg px-4 py-2" />
+    </div>
+    <div class="flex flex-row w-full h-full justify-center items-center gap-4 text-2xl">
+      <p class="w-40">Path:</p>
+      <input type="text" id="path" name="magent" class="text-zinc-950 rounded-lg w-full max-w-lg px-4 py-2" />
+    </div>
+  </div>
+  <button id="btn" class="bg-blue-950 text-zinc-50 rounded-lg p-4">
+    Submit
+  </button>
+</body>
+
+</html>
