@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type Torrent struct {
@@ -19,11 +20,20 @@ var reqs chan Torrent
 func main() {
 	e := echo.New()
 
-	// set up buffered channel
-	reqs = make(chan Torrent, 1000)
+	// Middleware
+	e.Use(middleware.CORS())
 
 	// serve static files
 	e.Static("/", "public")
+	e.Static("/stream", "stream")
+	// set up buffered channel
+	reqs = make(chan Torrent, 1000)
+
+	// create log file
+	_, err := os.Create("log.log")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// start monitoring requests
 	go monitorRequests()
@@ -47,6 +57,21 @@ func main() {
 		return c.String(200, "POST /api/v1/torrents")
 	})
 
+	e.GET("/api/v1/torrents/stream", func(c echo.Context) error {
+		// read file
+		f, err := os.Open("log.log")
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		// stream file
+		if _, err := io.Copy(c.Response().Writer, f); err != nil {
+			return err
+		}
+		return nil
+	})
+
 	// start server
 	e.Logger.Fatal(e.Start(":4040"))
 }
@@ -59,9 +84,45 @@ func downloadTorrent(Path string, magnet string) {
 	cmd := exec.Command("torrent", "download", magnet)
 	cmd.Dir = Path
 
-	// print output to console
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// print output to file
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// get output line by line
+	go func() {
+		for {
+			buf := make([]byte, 1024)
+			n, err := stdout.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Fatal(err)
+			}
+			saveToFile(string(buf[:n]))
+		}
+	}()
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// get output line by line
+	go func() {
+		for {
+			buf := make([]byte, 1024)
+			n, err := stderr.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Fatal(err)
+			}
+			saveToFile(string(buf[:n]))
+		}
+	}()
 
 	// run command
 	cmd.Run()
@@ -71,5 +132,18 @@ func monitorRequests() {
 	for {
 		req := <-reqs
 		downloadTorrent(req.Path, req.Magnet)
+	}
+}
+
+func saveToFile(logLine string) {
+	f, err := os.OpenFile("log.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	// write to file
+	if _, err := f.WriteString(logLine); err != nil {
+		log.Fatal(err)
 	}
 }
