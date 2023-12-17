@@ -9,11 +9,24 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type Torrent struct {
+	Path   string `json:"path"`
+	Magnet string `json:"magnet"`
+}
+
+var reqs chan Torrent
+
 func main() {
 	e := echo.New()
 
+	// set up buffered channel
+	reqs = make(chan Torrent, 1000)
+
 	// serve static files
 	e.Static("/", "public")
+
+	// start monitoring requests
+	go monitorRequests()
 
 	// api routes
 	e.POST("/api/v1/torrents", func(c echo.Context) error {
@@ -28,7 +41,8 @@ func main() {
 		// Get Path
 		Path := c.QueryParam("path")
 
-		go downloadTorrent(Path, string(body))
+		// add request to queue
+		reqs <- Torrent{Path: Path, Magnet: string(body)}
 
 		return c.String(200, "POST /api/v1/torrents")
 	})
@@ -51,4 +65,11 @@ func downloadTorrent(Path string, magnet string) {
 
 	// run command
 	cmd.Run()
+}
+
+func monitorRequests() {
+	for {
+		req := <-reqs
+		downloadTorrent(req.Path, req.Magnet)
+	}
 }
